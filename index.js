@@ -28,7 +28,7 @@ app.post("/boost", async (req, res) => {
     const cookies = getCookies(appstate);
     const postID = extractPostID(postLink);
 
-    if (!postID) return res.json({ message: "❌ Invalid post link/ID." });
+    if (!postID) return res.status(400).json({ message: "❌ Invalid post link/ID." });
 
     const maxLimit = 100;
     const safeLimit = Math.min(Number(limit), maxLimit);
