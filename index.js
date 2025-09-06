@@ -21,17 +21,17 @@ function extractPostID(linkOrID) {
 
   if (/^\d+$/.test(linkOrID)) return linkOrID;
 
-  let match = linkOrID.match(/\/posts\/(\d+)/);
+  let match = linkOrID.match(/\/posts\/(\d{8,})/);
   if (match) return match[1];
 
-  match = linkOrID.match(/story_fbid=(\d+)/);
+  match = linkOrID.match(/story_fbid=(\d{8,})/);
   if (match) return match[1];
 
-  match = linkOrID.match(/[?&]id=(\d+)/);
+  match = linkOrID.match(/[?&]id=(\d{8,})/);
   if (match) return match[1];
 
-  match = linkOrID.match(/(\d{8,})$/);
-  if (match) return match[1];
+  match = linkOrID.match(/(\d{8,})/g);
+  if (match) return match[match.length - 1];
 
   return null;
 }
@@ -39,8 +39,13 @@ function extractPostID(linkOrID) {
 app.post("/boost", async (req, res) => {
   try {
     const { appstate, postLink, reactionType, limit } = req.body;
+
+    console.log("🔎 Received postLink:", postLink);
+
     const cookies = getCookies(appstate);
     const postID = extractPostID(postLink);
+
+    console.log("📌 Extracted postID:", postID);
 
     if (!postID) return res.status(400).json({ message: "❌ Invalid post link/ID." });
 
@@ -58,7 +63,7 @@ app.post("/boost", async (req, res) => {
         body: `ft_ent_identifier=${postID}&reaction_type=${reactionType}`
       });
 
-      console.log(`Reacted #${i + 1} on post ${postID}`);
+      console.log(`✅ Reacted #${i + 1} on post ${postID}`);
 
       const randomDelay = 1000 + Math.floor(Math.random() * 1000);
       await sleep(randomDelay);
@@ -66,7 +71,7 @@ app.post("/boost", async (req, res) => {
 
     res.json({ message: `✅ Reacted ${safeLimit} times with type ${reactionType} on post ${postID}` });
   } catch (err) {
-    console.error(err);
+    console.error("🔥 Error in /boost:", err);
     res.status(500).json({ message: "❌ Error boosting reaction." });
   }
 });
