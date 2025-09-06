@@ -2,7 +2,7 @@ import express from "express";
 import fetch from "node-fetch";
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.static("public"));
 app.use(express.json({ limit: "2mb" }));
@@ -27,11 +27,11 @@ function extractPostID(linkOrID) {
   if (/^\d+$/.test(linkOrID)) return linkOrID;
 
   const patterns = [
-    /[?&]story_fbid=(\d+)/,  
-    /\/posts\/(\d+)/,        
-    /[?&]fbid=(\d+)/,         
-    /\/photos\/\w+\.(\d+)/,   
-    /[?&]id=(\d+)/            
+    /[?&]story_fbid=(\d+)/,     
+    /\/posts\/(\d+)/,           
+    /[?&]fbid=(\d+)/,           
+    /\/photo\.php\?fbid=(\d+)/, 
+    /[?&]id=(\d+)/              
   ];
 
   for (const p of patterns) {
@@ -39,9 +39,8 @@ function extractPostID(linkOrID) {
     if (match) return match[1];
   }
 
-  return null; /
+  return null; 
 }
-
 async function getTokens(cookies) {
   const res = await fetch("https://mbasic.facebook.com/", {
     headers: { Cookie: cookies, "User-Agent": "Mozilla/5.0" }
@@ -67,13 +66,17 @@ app.post("/boost", async (req, res) => {
     const cookies = getCookies(appstate);
     const postID = extractPostID(postLink);
 
+    console.log("👉 Raw Input:", postLink);
+    console.log("👉 Extracted PostID:", postID);
+
     if (!postID) {
-      return res.status(400).json({ message: "❌ Invalid post link/ID. Please check your link format." });
+      return res.status(400).json({ message: "❌ Invalid post link/ID." });
     }
 
     const maxLimit = 100;
     const safeLimit = Math.min(Number(limit), maxLimit);
 
+    // Get tokens
     let fb_dtsg, jazoest;
     try {
       ({ fb_dtsg, jazoest } = await getTokens(cookies));
