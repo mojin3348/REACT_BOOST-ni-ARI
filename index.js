@@ -4,16 +4,21 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: "2mb" }));
 app.use(express.static("public"));
+app.use(express.json({ limit: "2mb" }));
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function getCookies(appstate) {
-  const parsed = JSON.parse(appstate);
-  return parsed.map(c => `${c.key}=${c.value}`).join("; ");
+  try {
+    const parsed = JSON.parse(appstate);
+    if (!Array.isArray(parsed)) throw new Error("Appstate is not an array.");
+    return parsed.map(c => `${c.key}=${c.value}`).join("; ");
+  } catch (err) {
+    throw new Error("❌ Invalid Appstate JSON format.");
+  }
 }
 
 function extractPostID(linkOrID) {
@@ -22,14 +27,24 @@ function extractPostID(linkOrID) {
   return match ? match[1] : null;
 }
 
-const reactionMap = {
-  like: 1,
-  love: 2,
-  wow: 3,
-  haha: 4,
-  sad: 7,
-  angry: 8
-};
+async function getTokens(cookies) {
+  const res = await fetch("https://mbasic.facebook.com/", {
+    headers: { Cookie: cookies, "User-Agent": "Mozilla/5.0" }
+  });
+
+  if (res.status !== 200) throw new Error("❌ Failed to load Facebook. Maybe cookies are invalid.");
+
+  const html = await res.text();
+
+  const fb_dtsg = (html.match(/name="fb_dtsg" value="([^"]+)"/) || [])[1];
+  const jazoest = (html.match(/name="jazoest" value="([^"]+)"/) || [])[1];
+
+  if (!fb_dtsg || !jazoest) {
+    throw new Error("❌ Failed to extract fb_dtsg/jazoest. Account might be checkpointed or cookies expired.");
+  }
+
+  return { fb_dtsg, jazoest };
+}
 
 app.post("/boost", async (req, res) => {
   try {
@@ -37,42 +52,50 @@ app.post("/boost", async (req, res) => {
     const cookies = getCookies(appstate);
     const postID = extractPostID(postLink);
 
-    if (!postID) return res.status(400).json({ message: "❌ Invalid post link/ID." });
-
-    const home = await fetch("https://mbasic.facebook.com/", {
-      headers: { "Cookie": cookies, "User-Agent": "Mozilla/5.0" }
-    });
-    const html = await home.text();
-    const fb_dtsg = html.match(/name="fb_dtsg" value="(.*?)"/)?.[1];
-    const jazoest = html.match(/name="jazoest" value="(.*?)"/)?.[1];
-
-    if (!fb_dtsg || !jazoest) {
-      return res.status(400).json({ message: "❌ Failed to fetch fb_dtsg or jazoest." });
+    if (!postID) {
+      return res.status(400).json({ message: "❌ Invalid post link/ID." });
     }
 
     const maxLimit = 100;
     const safeLimit = Math.min(Number(limit), maxLimit);
 
-    const reactCode = reactionMap[reactionType.toLowerCase()] || 1; // default like
+    let fb_dtsg, jazoest;
+    try {
+      ({ fb_dtsg, jazoest } = await getTokens(cookies));
+    } catch (err) {
+      console.error(err.message);
+      return res.status(401).json({ message: err.message });
+    }
+
+    let successCount = 0;
 
     for (let i = 0; i < safeLimit; i++) {
-      const r = await fetch(`https://mbasic.facebook.com/ufi/reaction/?ft_ent_identifier=${postID}`, {
+      const response = await fetch("https://mbasic.facebook.com/ufi/reaction/", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           "Cookie": cookies,
           "User-Agent": "Mozilla/5.0"
         },
-        body: `fb_dtsg=${fb_dtsg}&jazoest=${jazoest}&reaction_type=${reactCode}&ft_ent_identifier=${postID}`
+        body: `fb_dtsg=${encodeURIComponent(fb_dtsg)}&jazoest=${encodeURIComponent(jazoest)}&reaction_type=${reactionType}&ft_ent_identifier=${postID}`
       });
 
-      console.log(`Reacted #${i + 1} with ${reactionType} on post ${postID}, status=${r.status}`);
-      await sleep(1000 + Math.floor(Math.random() * 1000)); // 1–2s delay
+      const text = await response.text();
+
+      if (response.status === 200 && !text.includes("login")) {
+        successCount++;
+        console.log(`✅ Reacted #${i + 1} on post ${postID}`);
+      } else {
+        console.log(`❌ Failed react #${i + 1}, status: ${response.status}`);
+      }
+
+      const randomDelay = 1000 + Math.floor(Math.random() * 1000);
+      await sleep(randomDelay);
     }
 
-    res.json({ message: `✅ Reacted ${safeLimit} times with ${reactionType} on post ${postID}` });
+    res.json({ message: `Boost finished. Success: ${successCount}/${safeLimit}` });
   } catch (err) {
-    console.error("Boost error:", err);
+    console.error("❌ Unexpected error:", err);
     res.status(500).json({ message: "❌ Error boosting reaction." });
   }
 });
