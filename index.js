@@ -22,9 +22,24 @@ function getCookies(appstate) {
 }
 
 function extractPostID(linkOrID) {
+  if (!linkOrID) return null;
+
   if (/^\d+$/.test(linkOrID)) return linkOrID;
-  const match = linkOrID.match(/\/posts\/(\d+)/) || linkOrID.match(/story_fbid=(\d+)/);
-  return match ? match[1] : null;
+
+  const patterns = [
+    /[?&]story_fbid=(\d+)/,  
+    /\/posts\/(\d+)/,        
+    /[?&]fbid=(\d+)/,         
+    /\/photos\/\w+\.(\d+)/,   
+    /[?&]id=(\d+)/            
+  ];
+
+  for (const p of patterns) {
+    const match = linkOrID.match(p);
+    if (match) return match[1];
+  }
+
+  return null; /
 }
 
 async function getTokens(cookies) {
@@ -53,7 +68,7 @@ app.post("/boost", async (req, res) => {
     const postID = extractPostID(postLink);
 
     if (!postID) {
-      return res.status(400).json({ message: "❌ Invalid post link/ID." });
+      return res.status(400).json({ message: "❌ Invalid post link/ID. Please check your link format." });
     }
 
     const maxLimit = 100;
