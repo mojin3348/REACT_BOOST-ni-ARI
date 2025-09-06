@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>FB ReactBoost</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h2>Facebook ReactBoost</h2>
+
+    <form id="boostForm">
+      <label>Paste Appstate JSON:</label>
+      <textarea id="appstate" rows="8" placeholder='YOUR APPSTATE HERE...' required></textarea><br>
+
+      <label>Post Link / ID:</label>
+      <input type="text" id="postLink" placeholder="https://facebook.com/... or ID" required><br>
+
+      <label>Reaction Type:</label>
+      <select id="reactionType">
+        <option value="1">Like 👍</option>
+        <option value="2">Love ❤️</option>
+        <option value="16">Care 🤗</option>
+        <option value="4">Haha 😆</option>
+        <option value="3">Wow 😮</option>
+        <option value="7">Sad 😢</option>
+        <option value="8">Angry 😡</option>
+      </select><br>
+
+      <label>React Limit:</label>
+      <input type="number" id="limit" value="1" min="1" max="50"><br>
+
+      <button type="submit">Start Boost</button>
+    </form>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    document.getElementById("boostForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const appstate = document.getElementById("appstate").value;
+      const postLink = document.getElementById("postLink").value;
+      const reactionType = document.getElementById("reactionType").value;
+      const limit = document.getElementById("limit").value;
+
+      const res = await fetch("/boost", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ appstate, postLink, reactionType, limit })
+      });
+
+      const data = await res.json();
+      document.getElementById("result").textContent = data.message;
+    });
+  </script>
+</body>
+</html>
