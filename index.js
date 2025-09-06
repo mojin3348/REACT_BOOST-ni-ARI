@@ -17,53 +17,52 @@ function getCookies(appstate) {
 }
 
 function extractPostID(linkOrID) {
-  if (!linkOrID) return null;
-
   if (/^\d+$/.test(linkOrID)) return linkOrID;
+  const match =
+    linkOrID.match(/\/posts\/(\d+)/) ||
+    linkOrID.match(/story_fbid=(\d+)/) ||
+    linkOrID.match(/\/(\d{8,})/);
+  return match ? match[1] : null;
+}
 
-  let match = linkOrID.match(/\/posts\/(\d{8,})/);
-  if (match) return match[1];
-
-  match = linkOrID.match(/story_fbid=(\d{8,})/);
-  if (match) return match[1];
-
-  match = linkOrID.match(/[?&]id=(\d{8,})/);
-  if (match) return match[1];
-
-  match = linkOrID.match(/(\d{8,})/g);
-  if (match) return match[match.length - 1];
-
-  return null;
+async function getFbDtsg(cookies) {
+  const resp = await fetch("https://mbasic.facebook.com/", {
+    headers: {
+      "Cookie": cookies,
+      "User-Agent": "Mozilla/5.0"
+    }
+  });
+  const html = await resp.text();
+  const token = html.match(/name="fb_dtsg" value="(.*?)"/)?.[1];
+  return token;
 }
 
 app.post("/boost", async (req, res) => {
   try {
     const { appstate, postLink, reactionType, limit } = req.body;
-
-    console.log("🔎 Received postLink:", postLink);
-
     const cookies = getCookies(appstate);
     const postID = extractPostID(postLink);
 
-    console.log("📌 Extracted postID:", postID);
-
     if (!postID) return res.status(400).json({ message: "❌ Invalid post link/ID." });
+
+    const fb_dtsg = await getFbDtsg(cookies);
+    if (!fb_dtsg) return res.status(400).json({ message: "❌ Failed to fetch fb_dtsg token." });
 
     const maxLimit = 100;
     const safeLimit = Math.min(Number(limit), maxLimit);
 
     for (let i = 0; i < safeLimit; i++) {
-      await fetch("https://www.facebook.com/ufi/reaction/", {
+      const response = await fetch("https://mbasic.facebook.com/ufi/reaction/", {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           "Cookie": cookies,
           "User-Agent": "Mozilla/5.0"
         },
-        body: `ft_ent_identifier=${postID}&reaction_type=${reactionType}`
+        body: `fb_dtsg=${encodeURIComponent(fb_dtsg)}&ft_ent_identifier=${postID}&reaction_type=${reactionType}`
       });
 
-      console.log(`✅ Reacted #${i + 1} on post ${postID}`);
+      console.log(`Reacted #${i + 1} on post ${postID}, status: ${response.status}`);
 
       const randomDelay = 1000 + Math.floor(Math.random() * 1000);
       await sleep(randomDelay);
@@ -71,11 +70,9 @@ app.post("/boost", async (req, res) => {
 
     res.json({ message: `✅ Reacted ${safeLimit} times with type ${reactionType} on post ${postID}` });
   } catch (err) {
-    console.error("🔥 Error in /boost:", err);
+    console.error(err);
     res.status(500).json({ message: "❌ Error boosting reaction." });
   }
 });
 
-app.listen(PORT, () =>
-  console.log(`🚀 Server running at http://localhost:${PORT}`)
-);
+app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
