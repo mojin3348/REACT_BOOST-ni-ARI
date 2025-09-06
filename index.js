@@ -1,121 +1,133 @@
-import express from "express";
-import fetch from "node-fetch";
-
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
+const bodyParser = require('body-parser');
 const app = express();
-const PORT = process.env.PORT || 3000;
+app.use(express.json());
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(express.static("public"));
-app.use(express.json({ limit: "2mb" }));
+const total = new Map();
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
+app.get('/total', (req, res) => {
+  const data = Array.from(total.values()).map((link, index)  => ({
+    session: index + 1,
+    url: link.url,
+    count: link.count,
+    id: link.id,
+    target: link.target,
+    type: link.type
+  }));
+  res.json(JSON.parse(JSON.stringify(data || [], null, 2)));
+});
 
-function getCookies(appstate) {
+app.get('/', (res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+app.post('/api/submit', async (req, res) => {
+  const { cookie, url, amount, interval, reactionType } = req.body;
+  if (!cookie || !url || !amount || !interval || !reactionType)
+    return res.status(400).json({ error: 'Missing cookie, url, amount, interval or reactionType' });
+
   try {
-    const parsed = JSON.parse(appstate);
-    if (!Array.isArray(parsed)) throw new Error("Appstate is not an array.");
-    return parsed.map(c => `${c.key}=${c.value}`).join("; ");
+    const cookies = await convertCookie(cookie);
+    if (!cookies) {
+      return res.status(400).json({ status: 500, error: 'Invalid cookies' });
+    }
+
+    await react(cookies, url, amount, interval, reactionType);
+    res.status(200).json({ status: 200 });
   } catch (err) {
-    throw new Error("❌ Invalid Appstate JSON format.");
-  }
-}
-
-function extractPostID(linkOrID) {
-  if (!linkOrID) return null;
-
-  if (/^\d+$/.test(linkOrID)) return linkOrID;
-
-  const patterns = [
-    /[?&]story_fbid=(\d+)/,     
-    /\/posts\/(\d+)/,           
-    /[?&]fbid=(\d+)/,           
-    /\/photo\.php\?fbid=(\d+)/, 
-    /[?&]id=(\d+)/              
-  ];
-
-  for (const p of patterns) {
-    const match = linkOrID.match(p);
-    if (match) return match[1];
-  }
-
-  return null; 
-}
-async function getTokens(cookies) {
-  const res = await fetch("https://mbasic.facebook.com/", {
-    headers: { Cookie: cookies, "User-Agent": "Mozilla/5.0" }
-  });
-
-  if (res.status !== 200) throw new Error("❌ Failed to load Facebook. Maybe cookies are invalid.");
-
-  const html = await res.text();
-
-  const fb_dtsg = (html.match(/name="fb_dtsg" value="([^"]+)"/) || [])[1];
-  const jazoest = (html.match(/name="jazoest" value="([^"]+)"/) || [])[1];
-
-  if (!fb_dtsg || !jazoest) {
-    throw new Error("❌ Failed to extract fb_dtsg/jazoest. Account might be checkpointed or cookies expired.");
-  }
-
-  return { fb_dtsg, jazoest };
-}
-
-app.post("/boost", async (req, res) => {
-  try {
-    const { appstate, postLink, reactionType, limit } = req.body;
-    const cookies = getCookies(appstate);
-    const postID = extractPostID(postLink);
-
-    console.log("👉 Raw Input:", postLink);
-    console.log("👉 Extracted PostID:", postID);
-
-    if (!postID) {
-      return res.status(400).json({ message: "❌ Invalid post link/ID." });
-    }
-
-    const maxLimit = 100;
-    const safeLimit = Math.min(Number(limit), maxLimit);
-
-    // Get tokens
-    let fb_dtsg, jazoest;
-    try {
-      ({ fb_dtsg, jazoest } = await getTokens(cookies));
-    } catch (err) {
-      console.error(err.message);
-      return res.status(401).json({ message: err.message });
-    }
-
-    let successCount = 0;
-
-    for (let i = 0; i < safeLimit; i++) {
-      const response = await fetch("https://mbasic.facebook.com/ufi/reaction/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Cookie": cookies,
-          "User-Agent": "Mozilla/5.0"
-        },
-        body: `fb_dtsg=${encodeURIComponent(fb_dtsg)}&jazoest=${encodeURIComponent(jazoest)}&reaction_type=${reactionType}&ft_ent_identifier=${postID}`
-      });
-
-      const text = await response.text();
-
-      if (response.status === 200 && !text.includes("login")) {
-        successCount++;
-        console.log(`✅ Reacted #${i + 1} on post ${postID}`);
-      } else {
-        console.log(`❌ Failed react #${i + 1}, status: ${response.status}`);
-      }
-
-      const randomDelay = 1000 + Math.floor(Math.random() * 1000);
-      await sleep(randomDelay);
-    }
-
-    res.json({ message: `Boost finished. Success: ${successCount}/${safeLimit}` });
-  } catch (err) {
-    console.error("❌ Unexpected error:", err);
-    res.status(500).json({ message: "❌ Error boosting reaction." });
+    return res.status(500).json({ status: 500, error: err.message || err });
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
+async function react(cookies, url, amount, interval, reactionType) {
+  const id = await getPostID(url);
+  if (!id) throw new Error("Unable to get link id: invalid URL or private post.");
+
+  const postId = total.has(id) ? id + 1 : id;
+  total.set(postId, { url, id, count: 0, target: amount, type: reactionType });
+
+  let reactedCount = 0;
+  let timer;
+
+  async function reactOnce() {
+    try {
+      const { fb_dtsg, jazoest } = await getTokens(cookies);
+      const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'cookie': cookies,
+        'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+      };
+
+      const body = `fb_dtsg=${encodeURIComponent(fb_dtsg)}&jazoest=${encodeURIComponent(jazoest)}&reaction_type=${reactionType}&ft_ent_identifier=${id}`;
+
+      const response = await axios.post(`https://mbasic.facebook.com/ufi/reaction/?ft_ent_identifier=${id}`, body, { headers });
+
+      if (response.status === 200) {
+        total.set(postId, { ...total.get(postId), count: total.get(postId).count + 1 });
+        reactedCount++;
+        console.log(`✅ Reacted #${reactedCount} on post ${id}`);
+      }
+
+      if (reactedCount === amount) clearInterval(timer);
+
+    } catch (error) {
+      console.error("❌ Failed to react:", error.message);
+      clearInterval(timer);
+      total.delete(postId);
+    }
+  }
+
+  timer = setInterval(reactOnce, interval * 1000);
+
+  // Safety auto-stop
+  setTimeout(() => {
+    clearInterval(timer);
+    total.delete(postId);
+  }, amount * interval * 1000);
+}
+
+async function getPostID(url) {
+  try {
+    const response = await axios.post('https://id.traodoisub.com/api.php', `link=${encodeURIComponent(url)}`, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    });
+    if (response.data && response.data.id) return response.data.id;
+    
+    const regex = url.match(/(fbid=\d+|story_fbid=(\d+)|\/posts\/(\d+)|pfbid[^\s/]+)/);
+    return regex ? regex[2] || regex[3] || regex[1] : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function getTokens(cookies) {
+  const res = await axios.get("https://mbasic.facebook.com/", {
+    headers: { cookie: cookies, "user-agent": "Mozilla/5.0" }
+  });
+  const html = res.data;
+  const fb_dtsg = (html.match(/name="fb_dtsg" value="([^"]+)"/) || [])[1];
+  const jazoest = (html.match(/name="jazoest" value="([^"]+)"/) || [])[1];
+  if (!fb_dtsg || !jazoest) throw new Error("Failed to extract fb_dtsg/jazoest");
+  return { fb_dtsg, jazoest };
+}
+
+// Convert appstate JSON to cookie string
+async function convertCookie(cookie) {
+  return new Promise((resolve, reject) => {
+    try {
+      const cookies = JSON.parse(cookie);
+      const sbCookie = cookies.find(c => c.key === "sb");
+      if (!sbCookie) reject("Invalid appstate");
+      const data = cookies.map(c => `${c.key}=${c.value}`).join("; ");
+      resolve(data);
+    } catch (error) {
+      reject("Error processing appstate");
+    }
+  });
+}
+
+app.listen(5000, () => console.log("🚀 ReactBoost server running on port 5000"));
