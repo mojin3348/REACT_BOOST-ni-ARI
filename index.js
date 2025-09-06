@@ -17,9 +17,23 @@ function getCookies(appstate) {
 }
 
 function extractPostID(linkOrID) {
+  if (!linkOrID) return null;
+
   if (/^\d+$/.test(linkOrID)) return linkOrID;
-  const match = linkOrID.match(/\/posts\/(\d+)/) || linkOrID.match(/story_fbid=(\d+)/);
-  return match ? match[1] : null;
+
+  let match = linkOrID.match(/\/posts\/(\d+)/);
+  if (match) return match[1];
+
+  match = linkOrID.match(/story_fbid=(\d+)/);
+  if (match) return match[1];
+
+  match = linkOrID.match(/[?&]id=(\d+)/);
+  if (match) return match[1];
+
+  match = linkOrID.match(/(\d{8,})$/);
+  if (match) return match[1];
+
+  return null;
 }
 
 app.post("/boost", async (req, res) => {
@@ -57,4 +71,6 @@ app.post("/boost", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Server running at http://localhost:${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 Server running at http://localhost:${PORT}`)
+);
