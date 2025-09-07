@@ -1,114 +1,87 @@
 const express = require("express");
-const path = require("path");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 
 const app = express();
-app.use(express.json());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static("public")); 
 
-let clients = [];
+async function extractTokens(cookie) {
+  try {
+    const headers = {
+      "cookie": cookie,
+      "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    };
 
-app.get("/events", (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
+    const res = await axios.get("https://www.facebook.com/", { headers });
 
-  clients.push(res);
+    const page = res.data;
 
-  req.on("close", () => {
-    clients = clients.filter(c => c !== res);
-  });
-});
+    const fb_dtsg = page.match(/"DTSGInitialData",\[],{"token":"([^"]+)"}/)?.[1];
+    const lsd = page.match(/"LSD",\[],{"token":"([^"]+)"}/)?.[1];
+    const jazoest = page.match(/name="jazoest" value="([^"]+)"/)?.[1];
+    const spin_r = page.match(/"__spin_r":([0-9]+)/)?.[1];
+    const spin_t = page.match(/"__spin_t":([0-9]+)/)?.[1];
+    const userId = cookie.match(/c_user=(\d+)/)?.[1];
 
-function sendEvent(message) {
-  clients.forEach(res => res.write(`data: ${JSON.stringify(message)}\n\n`));
+    return { fb_dtsg, lsd, jazoest, spin_r, spin_t, userId };
+  } catch (err) {
+    console.error("❌ Failed extracting tokens:", err.message);
+    return null;
+  }
 }
 
-app.post("/boost", async (req, res) => {
-  const { cookie, url, amount, interval, reactionType } = req.body;
-  if (!cookie || !url || !amount || !interval || !reactionType) {
-    return res.status(400).json({ error: "Missing required fields" });
-  }
-
+app.post("/react", async (req, res) => {
   try {
-    const cookies = await convertCookie(cookie);
-    if (!cookies) return res.status(400).json({ error: "Invalid cookies" });
-
-    const id = await getPostID(url);
-    if (!id) return res.status(400).json({ error: "Invalid post link/ID" });
-
-    let count = 0;
-
-    async function reactOnce() {
-      try {
-        const { fb_dtsg, jazoest } = await getTokens(cookies);
-
-        const headers = {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "cookie": cookies,
-          "user-agent": "Mozilla/5.0",
-        };
-
-        const body = `fb_dtsg=${encodeURIComponent(fb_dtsg)}&jazoest=${encodeURIComponent(jazoest)}&reaction_type=${reactionType}&ft_ent_identifier=${id}`;
-
-        const response = await axios.post(`https://mbasic.facebook.com/ufi/reaction/?ft_ent_identifier=${id}`, body, { headers });
-
-        if (response.status === 200) {
-          count++;
-          sendEvent({ success: true, current: count, total: amount });
-        } else {
-          sendEvent({ success: false, current: count, total: amount });
-        }
-
-        if (count >= amount) clearInterval(timer);
-      } catch (err) {
-        sendEvent({ success: false, error: err.message });
-        clearInterval(timer);
-      }
+    const { appstate, postId, reactionType } = req.body;
+    if (!appstate || !postId || !reactionType) {
+      return res.status(400).json({ error: "❌ Missing required fields" });
     }
 
-    const timer = setInterval(reactOnce, interval * 1000);
+    const cookie = appstate.map(c => `${c.key}=${c.value}`).join("; ");
 
-    res.json({ message: "🚀 Boost started" });
+    const tokens = await extractTokens(cookie);
+    if (!tokens || !tokens.fb_dtsg) {
+      return res.status(500).json({ error: "❌ Failed to extract fb_dtsg/lsd/jazoest" });
+    }
+
+    const formData = new URLSearchParams({
+      av: tokens.userId,
+      __user: tokens.userId,
+      fb_dtsg: tokens.fb_dtsg,
+      jazoest: tokens.jazoest,
+      lsd: tokens.lsd,
+      __spin_r: tokens.spin_r,
+      __spin_b: "trunk",
+      __spin_t: tokens.spin_t,
+      fb_api_req_friendly_name: "CometUFIFeedbackReactMutation",
+      doc_id: "2403499796277671",
+      variables: JSON.stringify({
+        input: {
+          attribution_id_v2: "ProfileCometTimelineListViewRoot.react",
+          feedback_id: postId,
+          feedback_reaction: reactionType,
+          feedback_source: "PROFILE",
+          is_tracking_encrypted: true,
+          actor_id: tokens.userId,
+          client_mutation_id: "9"
+        }
+      })
+    });
+
+    const response = await axios.post("https://www.facebook.com/api/graphql/", formData, {
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        "cookie": cookie,
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+      }
+    });
+
+    return res.json({ success: true, data: response.data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.response?.data || err.message });
   }
 });
 
-async function getPostID(url) {
-  try {
-    const response = await axios.post(
-      "https://id.traodoisub.com/api.php",
-      `link=${encodeURIComponent(url)}`,
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-    );
-    return response.data.id;
-  } catch {
-    return null;
-  }
-}
-
-async function getTokens(cookies) {
-  const res = await axios.get("https://mbasic.facebook.com/", {
-    headers: { cookie: cookies, "user-agent": "Mozilla/5.0" },
-  });
-  const html = res.data;
-  const fb_dtsg = (html.match(/name="fb_dtsg" value="([^"]+)"/) || [])[1];
-  const jazoest = (html.match(/name="jazoest" value="([^"]+)"/) || [])[1];
-  if (!fb_dtsg || !jazoest) throw new Error("Failed to extract fb_dtsg/jazoest");
-  return { fb_dtsg, jazoest };
-}
-
-async function convertCookie(cookie) {
-  try {
-    const cookies = JSON.parse(cookie);
-    return cookies.map(c => `${c.key}=${c.value}`).join("; ");
-  } catch {
-    return null;
-  }
-}
-
-app.listen(5000, () => console.log("🚀 ReactBoost SSE server running on port 5000"));
+const PORT = 5000;
+app.listen(PORT, () => console.log(`🚀 ReactBoost server running at http://localhost:${PORT}`));
