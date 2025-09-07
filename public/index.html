@@ -16,12 +16,21 @@
       align-items: center;
       color: #fff;
     }
-    .card {
+    .wrapper {
+      display: flex;
+      flex-direction: column; /* 🔑 stack form + history */
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 500px;
+      padding: 20px;
+    }
+    .card, .history {
       background: rgba(255,255,255,0.08);
       padding: 25px 30px;
       border-radius: 20px;
       box-shadow: 0 0 25px rgba(0,0,0,0.4), 0 0 40px rgba(0,255,255,0.2);
-      width: 420px;
+      width: 100%;
       backdrop-filter: blur(14px);
       animation: fadeIn 1s ease;
     }
@@ -86,40 +95,69 @@
       text-align: center;
       color: #ddd;
     }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      padding: 6px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+    }
+    th { color: #00e6ff; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>⚡ REACT BOOST ⚡</h1>
-    <form id="reactForm">
-      <label>Facebook Appstate / fbstate (JSON):</label>
-      <textarea id="appstate" rows="5" placeholder='Paste your fbstate/appstate JSON here...' required></textarea>
+  <div class="wrapper">
+    <div class="card">
+      <h1>⚡ REACT BOOST ⚡</h1>
+      <form id="reactForm">
+        <label>Facebook Appstate / fbstate (JSON):</label>
+        <textarea id="appstate" rows="5" placeholder='Paste your fbstate/appstate JSON here...' required></textarea>
 
-      <label>Facebook Post Link:</label>
-      <input type="text" id="postLink" placeholder="https://www.facebook.com/..." required />
+        <label>Facebook Post Link:</label>
+        <input type="text" id="postLink" placeholder="https://www.facebook.com/..." required />
 
-      <label>Reaction Type:</label>
-      <select id="reactionType">
-        <option value="1">👍 Like</option>
-        <option value="2">❤️ Love</option>
-        <option value="16">🤗 Care</option>
-        <option value="4">😆 Haha</option>
-        <option value="3">😮 Wow</option>
-        <option value="7">😢 Sad</option>
-        <option value="8">😡 Angry</option>
-      </select>
+        <label>Reaction Type:</label>
+        <select id="reactionType">
+          <option value="1">👍 Like</option>
+          <option value="2">❤️ Love</option>
+          <option value="16">🤗 Care</option>
+          <option value="4">😆 Haha</option>
+          <option value="3">😮 Wow</option>
+          <option value="7">😢 Sad</option>
+          <option value="8">😡 Angry</option>
+        </select>
 
-      <label>Amount (Limit):</label>
-      <input type="number" id="limit" min="1" max="100" value="5" required />
+        <label>Amount (Limit):</label>
+        <input type="number" id="limit" min="1" max="100" value="5" required />
 
-      <button type="submit">🚀 Start Boost</button>
-    </form>
+        <button type="submit">🚀 Start Boost</button>
+      </form>
 
-    <div id="result" class="result-box pending">⏳ Waiting...</div>
-    <div class="progress-container">
-      <div id="progress" class="progress-bar"></div>
+      <div id="result" class="result-box pending">⏳ Waiting...</div>
+      <div class="progress-container">
+        <div id="progress" class="progress-bar"></div>
+      </div>
+      <div id="counter">0 / 0</div>
     </div>
-    <div id="counter">0 / 0</div>
+
+    <div class="history">
+      <h2>📜 History</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>PostID</th>
+            <th>Reaction</th>
+            <th>✅ Success</th>
+            <th>❌ Failed</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <script>
@@ -141,6 +179,7 @@
       const resultBox = document.getElementById("result");
       const progressBar = document.getElementById("progress");
       const counter = document.getElementById("counter");
+      const tbody = document.getElementById("historyBody");
 
       resultBox.textContent = "⏳ Sending reactions...";
       resultBox.className = "result-box pending";
@@ -161,6 +200,18 @@
         counter.textContent = `${data.reacted} / ${limit}`;
         resultBox.textContent = `✅ Success: ${data.reacted}, ❌ Failed: ${data.failed}`;
         resultBox.className = "result-box success";
+
+        // add to history table
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${data.account}</td>
+          <td>${postLink}</td>
+          <td>${reactionType}</td>
+          <td>${data.reacted}</td>
+          <td>${data.failed}</td>
+        `;
+        tbody.prepend(row);
+
       } catch (err) {
         resultBox.textContent = "❌ " + err.message;
         resultBox.className = "result-box error";
