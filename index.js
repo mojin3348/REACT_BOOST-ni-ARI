@@ -1,4 +1,3 @@
-// index.js
 const express = require("express");
 const axios = require("axios");
 const bodyParser = require("body-parser");
@@ -8,7 +7,6 @@ const app = express();
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// ===== Helper: Convert fbstate JSON → Cookie string =====
 async function convertCookie(appstate) {
   try {
     const cookies = typeof appstate === "string" ? JSON.parse(appstate) : appstate;
@@ -18,7 +16,6 @@ async function convertCookie(appstate) {
   }
 }
 
-// ===== Helper: Extract fb_dtsg + jazoest + userId =====
 async function extractTokens(cookie) {
   const headers = {
     cookie,
@@ -39,7 +36,6 @@ async function extractTokens(cookie) {
   return { fb_dtsg, jazoest, userId };
 }
 
-// ===== Helper: Extract post ID from link =====
 function extractPostId(url) {
   return url.match(/story_fbid=(\d+)/)?.[1] ||
          url.match(/\/posts\/(\d+)/)?.[1] ||
@@ -47,7 +43,6 @@ function extractPostId(url) {
          url.match(/\/(\d{6,})(?:\/|\?|$)/)?.[1];
 }
 
-// ===== API: React Boost =====
 app.post("/react", async (req, res) => {
   try {
     const { appstate, postLink, reactionType, limit = 1 } = req.body;
@@ -106,6 +101,5 @@ app.post("/react", async (req, res) => {
   }
 });
 
-// ===== Start Server =====
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 React Boost API running on http://localhost:${PORT}`));
