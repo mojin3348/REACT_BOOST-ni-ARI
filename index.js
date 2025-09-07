@@ -4,66 +4,39 @@ const axios = require("axios");
 
 const app = express();
 app.use(bodyParser.json());
-app.use(express.static("public"));
 
-function normalizeAppstate(input) {
-  try {
-    let parsed = input;
-    
-    if (typeof parsed === "string") {
-      try {
-        parsed = JSON.parse(parsed);
-      } catch (e) {
-        try {
-          const decoded = Buffer.from(parsed, "base64").toString("utf8");
-          parsed = JSON.parse(decoded);
-        } catch (e2) {
-          throw new Error("Invalid appstate format");
-        }
+/**
+ * 🔄 Convert fbstate JSON -> cookie string
+ */
+async function convertCookie(cookie) {
+  return new Promise((resolve, reject) => {
+    try {
+      const cookies = typeof cookie === "string" ? JSON.parse(cookie) : cookie;
+      const sbCookie = cookies.find(c => c.key === "sb");
+
+      if (!sbCookie) {
+        return reject("Detect invalid appstate, please provide a valid appstate");
       }
+
+      const sbValue = sbCookie.value;
+      const data = `sb=${sbValue}; ${cookies
+        .filter(c => c.key !== "sb")
+        .map(c => `${c.key}=${decodeURIComponent(c.value)}`)
+        .join("; ")}`;
+
+      resolve(data);
+    } catch (error) {
+      reject("Error processing appstate, please provide a valid appstate");
     }
-
-    // Final check: should be array
-    if (!Array.isArray(parsed)) {
-      throw new Error("Appstate is not an array");
-    }
-
-    return parsed.map(item => {
-      let value = item.value;
-
-      try {
-        if (typeof value === "string" && value.includes("%")) {
-          const decoded = decodeURIComponent(value);
-          value = decoded;
-        }
-      } catch (_) {}
-
-      return {
-        key: item.key,
-        value,
-        domain: item.domain || "facebook.com",
-        path: item.path || "/",
-      };
-    });
-  } catch (e) {
-    throw new Error("Invalid appstate JSON");
-  }
-}
-
-function buildCookieFromAppstate(appstateStr) {
-  const arr = normalizeAppstate(appstateStr);
-  return arr.map(c => `${c.key}=${c.value}`).join("; ");
+  });
 }
 
 async function extractTokens(cookie) {
-  const headers = {
-    cookie,
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-  };
+  const headers = { cookie, "user-agent": "Mozilla/5.0" };
   const res = await axios.get("https://www.facebook.com/", { headers });
   const page = res.data;
   return {
-    fb_dtsg: page.match(/"DTSGInitialData",\[],{"token":"([^"]+)"}/)?.[1],
+    fb_dtsg: page.match(/"DTSGInitialData".*?"token":"([^"]+)"}/)?.[1],
     lsd: page.match(/"LSD",\[],{"token":"([^"]+)"}/)?.[1],
     jazoest: page.match(/name="jazoest" value="([^"]+)"/)?.[1],
     spin_r: page.match(/"__spin_r":([0-9]+)/)?.[1],
@@ -72,37 +45,32 @@ async function extractTokens(cookie) {
   };
 }
 
-function extractPostIdFromUrl(url) {
-  let postId = null;
-  const storyMatch = url.match(/story_fbid=(\d+)/);
-  const postMatch = url.match(/\/posts\/(\d+)/);
-  const videoMatch = url.match(/\/videos\/(\d+)/);
-  const directId = url.match(/\/(\d{6,})(?:\/|\?|$)/);
-  if (storyMatch) postId = storyMatch[1];
-  else if (postMatch) postId = postMatch[1];
-  else if (videoMatch) postId = videoMatch[1];
-  else if (directId) postId = directId[1];
-  return postId;
+function extractPostId(url) {
+  return url.match(/story_fbid=(\d+)/)?.[1] ||
+         url.match(/\/posts\/(\d+)/)?.[1] ||
+         url.match(/\/videos\/(\d+)/)?.[1] ||
+         url.match(/\/(\d{6,})(?:\/|\?|$)/)?.[1];
 }
 
 app.post("/react", async (req, res) => {
   try {
-    const { appstate, postLink, reactionType, limit } = req.body;
-    if (!appstate || !postLink || !reactionType) {
-      return res.status(400).json({ error: "Missing required fields" });
+    const { fbstate, postLink, reactionType, limit = 1 } = req.body;
+    if (!fbstate || !postLink || !reactionType) {
+      return res.status(400).json({ error: "Missing fields" });
     }
 
-    const postId = extractPostIdFromUrl(postLink);
-    if (!postId) return res.status(400).json({ error: "Invalid post link" });
+    const cookie = await convertCookie(fbstate);
 
-    const cookie = buildCookieFromAppstate(appstate);
     const tokens = await extractTokens(cookie);
-    if (!tokens.fb_dtsg) return res.status(500).json({ error: "Failed extracting fb_dtsg" });
+    if (!tokens.fb_dtsg) throw new Error("Token extraction failed");
+
+    const postId = extractPostId(postLink);
+    if (!postId) throw new Error("Invalid post link");
 
     let success = 0, fail = 0;
     for (let i = 0; i < limit; i++) {
       try {
-        const formData = new URLSearchParams({
+        const form = new URLSearchParams({
           av: tokens.userId,
           __user: tokens.userId,
           fb_dtsg: tokens.fb_dtsg,
@@ -118,16 +86,16 @@ app.post("/react", async (req, res) => {
               feedback_id: postId,
               feedback_reaction: reactionType,
               actor_id: tokens.userId,
-              client_mutation_id: String(i + 1)
+              client_mutation_id: String(Date.now())
             }
           })
         });
 
-        await axios.post("https://www.facebook.com/api/graphql/", formData, {
+        await axios.post("https://www.facebook.com/api/graphql/", form, {
           headers: {
             "content-type": "application/x-www-form-urlencoded",
             cookie,
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+            "user-agent": "Mozilla/5.0"
           }
         });
         success++;
@@ -135,10 +103,11 @@ app.post("/react", async (req, res) => {
         fail++;
       }
     }
-    return res.json({ reacted: success, failed: fail });
-  } catch (err) {
-    return res.status(500).json({ error: err.message });
+
+    res.json({ reacted: success, failed: fail, account: tokens.userId });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 
-app.listen(5000, () => console.log("🚀 Server running at http://localhost:5000"));
+app.listen(5000, () => console.log("🚀 API ready on http://localhost:5000"));
