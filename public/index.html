@@ -84,8 +84,8 @@
   <div class="card">
     <h1>⚡ REACT BOOST ⚡</h1>
     <form id="reactForm">
-      <label>Facebook Appstate (JSON):</label>
-      <textarea id="appstate" rows="5" placeholder='YOUR APPSTATE HERE...' required></textarea>
+      <label>Facebook Appstate (JSON or c3c fbstate):</label>
+      <textarea id="appstate" rows="5" placeholder='Paste your fbstate or appstate here...' required></textarea>
 
       <label>Facebook Post Link:</label>
       <input type="text" id="postLink" placeholder="https://www.facebook.com/..." required />
@@ -115,6 +115,21 @@
   </div>
 
   <script>
+    // Normalizer: convert fbstate object -> appstate array
+    function normalizeAppstate(input) {
+      try {
+        const parsed = JSON.parse(input);
+        if (Array.isArray(parsed)) {
+          return parsed; // already correct
+        } else if (typeof parsed === "object" && parsed !== null) {
+          return Object.keys(parsed).map(key => ({ key, value: String(parsed[key]) }));
+        }
+        throw new Error("Invalid format");
+      } catch (e) {
+        throw new Error("❌ Invalid JSON / Appstate format");
+      }
+    }
+
     function extractPostIdFromUrl(url) {
       let postId = null;
       const storyMatch = url.match(/story_fbid=(\d+)/);
@@ -132,7 +147,15 @@
     document.getElementById("reactForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const appstate = JSON.parse(document.getElementById("appstate").value.trim());
+      let appstate;
+      try {
+        const raw = document.getElementById("appstate").value.trim();
+        appstate = normalizeAppstate(raw);
+      } catch (err) {
+        alert(err.message);
+        return;
+      }
+
       const postLink = document.getElementById("postLink").value.trim();
       const reactionType = document.getElementById("reactionType").value;
       const limit = parseInt(document.getElementById("limit").value);
