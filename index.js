@@ -1,10 +1,13 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
+const fs = require("fs");
 
 const app = express();
 app.use(bodyParser.json());
 app.use(express.static("public")); 
+
+const appstate = JSON.parse(fs.readFileSync("./fbstate.json", "utf8"));
 
 async function extractTokens(cookie) {
   try {
@@ -47,8 +50,8 @@ function extractPostIdFromUrl(url) {
 
 app.post("/react", async (req, res) => {
   try {
-    const { appstate, postLink, reactionType, limit } = req.body;
-    if (!appstate || !postLink || !reactionType) {
+    const { postLink, reactionType, limit } = req.body;
+    if (!postLink || !reactionType) {
       return res.status(400).json({ error: "❌ Missing required fields" });
     }
 
@@ -59,7 +62,6 @@ app.post("/react", async (req, res) => {
 
     const cookie = appstate.map(c => `${c.key}=${c.value}`).join("; ");
 
-    // Extract tokens
     const tokens = await extractTokens(cookie);
     if (!tokens || !tokens.fb_dtsg) {
       return res.status(500).json({ error: "❌ Failed to extract fb_dtsg/lsd/jazoest" });
