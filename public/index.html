@@ -1,190 +1,224 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>⚡ ReactBoost ⚡</title>
   <style>
-    * {margin:0; padding:0; box-sizing:border-box; font-family:"Consolas", monospace;}
+    * { box-sizing: border-box; }
     body {
-      height:100vh;
-      background: radial-gradient(circle at top left, #0f0c29, #302b63, #24243e);
-      display:flex; justify-content:center; align-items:center;
-      color:#fff; overflow:hidden;
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #fff;
     }
 
     .card {
-      background: rgba(20,20,20,0.8);
-      border: 2px solid #ff00ff;
-      border-radius: 14px;
-      padding: 25px;
-      width: 440px;
-      box-shadow: 0 0 20px #ff00ff, 0 0 40px #00f0ff;
-      animation: pulse 3s infinite alternate;
+      background: rgba(255,255,255,0.07);
+      padding: 25px 30px;
+      border-radius: 18px;
+      box-shadow: 0 0 25px rgba(0,0,0,0.4), 0 0 40px rgba(0,255,255,0.2);
+      width: 420px;
+      backdrop-filter: blur(12px);
+      animation: fadeIn 1s ease;
     }
 
-    @keyframes pulse {
-      from { box-shadow: 0 0 15px #ff00ff, 0 0 30px #00f0ff; }
-      to { box-shadow: 0 0 30px #00f0ff, 0 0 60px #ff00ff; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
     }
 
-    h2 {
-      text-align:center;
-      font-size:26px;
-      color:#00f0ff;
-      margin-bottom:20px;
-      letter-spacing:2px;
-      text-shadow:0 0 10px #00f0ff,0 0 20px #ff00ff;
-      overflow:hidden;
-      white-space:nowrap;
-      border-right: 3px solid #00f0ff;
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 26px;
+      letter-spacing: 1px;
+      color: #00e6ff;
+      text-shadow: 0 0 8px #00e6ff, 0 0 16px #ff00ff;
+      overflow: hidden;
+      white-space: nowrap;
+      border-right: 3px solid #00e6ff;
       width: 0;
-      animation: typing 3s steps(30,end) forwards, blink 0.7s infinite;
+      margin-left: auto;
+      margin-right: auto;
+      animation: typing 2s steps(25,end) forwards, blink 0.7s infinite;
     }
     @keyframes typing { from{width:0;} to{width:100%;} }
-    @keyframes blink { 50%{border-color:transparent;} }
+    @keyframes blink { 50% { border-color: transparent; } }
 
-    label {font-size:13px; margin:6px 0; display:block; color:#ff66ff;}
-    input,textarea,select {
-      width:100%; padding:10px; margin-bottom:14px;
-      border:none; border-radius:8px;
-      background:rgba(255,255,255,0.1);
-      color:#fff; outline:none; font-size:14px;
-      box-shadow: inset 0 0 8px #00f0ff;
+    label {
+      font-size: 13px;
+      margin: 8px 0 4px;
+      color: #ff99ff;
+      display: block;
     }
-    textarea {resize:vertical;}
+    input, select, textarea, button {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+      margin-bottom: 14px;
+      font-size: 14px;
+    }
+    input, select, textarea {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      box-shadow: inset 0 0 8px rgba(0,255,255,0.3);
+    }
+    textarea { resize: vertical; }
 
     button {
-      width:100%; padding:12px;
-      border:none; border-radius:8px;
-      background:linear-gradient(90deg,#ff00ff,#00f0ff);
-      color:#fff; font-weight:bold; cursor:pointer;
-      font-size:16px; text-shadow:0 0 6px #000;
-      transition:0.3s; letter-spacing:1px;
+      background: linear-gradient(90deg, #ff00ff, #00e6ff);
+      color: #fff;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: 0.3s;
+      text-shadow: 0 0 6px #000;
     }
-    button:hover { transform:scale(1.05); box-shadow:0 0 20px #ff00ff,0 0 30px #00f0ff; }
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px #ff00ff, 0 0 30px #00e6ff;
+    }
 
     .result-box {
-      margin-top:16px; padding:10px;
-      border-radius:8px; font-weight:bold;
-      text-align:center; font-size:14px;
-      transition:all 0.4s ease;
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 8px;
+      font-weight: bold;
+      text-align: center;
+      font-size: 14px;
     }
-    .success { background:rgba(0,255,100,0.1); border:1px solid #00ff9d; color:#00ffcc; }
-    .error { background:rgba(255,0,60,0.1); border:1px solid #ff0040; color:#ff66aa; }
-    .pending { background:rgba(255,255,0,0.1); border:1px solid #ffff66; color:#ffff99; }
+    .pending { background: rgba(255,255,0,0.15); color: #ffff99; border: 1px solid #ffff66; }
+    .success { background: rgba(0,255,100,0.15); color: #00ffcc; border: 1px solid #00ff9d; }
+    .error   { background: rgba(255,0,60,0.15); color: #ff66aa; border: 1px solid #ff0040; }
 
+    .progress-container {
+      margin-top: 14px;
+      height: 18px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: inset 0 0 10px #000;
+    }
     .progress-bar {
-      margin-top:12px;
-      background:rgba(255,255,255,0.1);
-      border-radius:6px; overflow:hidden;
-      height:14px; box-shadow:inset 0 0 10px #000;
-    }
-    .progress {
-      height:100%; width:0%;
-      background:linear-gradient(90deg,#ff00ff,#00f0ff);
-      transition:width 0.25s ease;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #ff00ff, #00e6ff);
+      transition: width 0.25s;
     }
 
-    .counter {
-      margin-top:8px; text-align:center;
-      font-size:13px; color:#ccc;
+    #counter {
+      margin-top: 8px;
+      font-size: 13px;
+      text-align: center;
+      color: #ddd;
     }
 
     .footer {
-      text-align:center; font-size:12px; margin-top:12px;
-      color:#666; font-style:italic;
+      margin-top: 15px;
+      text-align: center;
+      font-size: 12px;
+      font-style: italic;
+      color: #888;
     }
   </style>
 </head>
 <body>
   <div class="card">
-    <h2>ReactBoost</h2>
-
+    <h1>ReactBoost</h1>
     <form id="boostForm">
-      <label>Paste Appstate JSON:</label>
-      <textarea id="appstate" rows="6" placeholder='YOUR APPSTATE HERE...' required></textarea>
+      <label>Facebook Appstate (JSON):</label>
+      <textarea id="appstate" rows="5" placeholder="Paste your appstate JSON here..." required></textarea>
 
-      <label>Post Link / ID:</label>
-      <input type="text" id="postLink" placeholder="https://facebook.com/... or ID" required>
+      <label>Post Link:</label>
+      <input type="text" id="postLink" placeholder="https://www.facebook.com/..." required />
 
       <label>Reaction Type:</label>
       <select id="reactionType">
-        <option value="1">Like 👍</option>
-        <option value="2">Love ❤️</option>
-        <option value="16">Care 🤗</option>
-        <option value="4">Haha 😆</option>
-        <option value="3">Wow 😮</option>
-        <option value="7">Sad 😢</option>
-        <option value="8">Angry 😡</option>
+        <option value="1">👍 Like</option>
+        <option value="2">❤️ Love</option>
+        <option value="16">🤗 Care</option>
+        <option value="4">😆 Haha</option>
+        <option value="3">😮 Wow</option>
+        <option value="7">😢 Sad</option>
+        <option value="8">😡 Angry</option>
       </select>
 
-      <label>React Limit (max 100):</label>
-      <input type="number" id="limit" value="1" min="1" max="100">
+      <label>Amount:</label>
+      <input type="number" id="limit" min="1" value="5" required />
 
-      <button type="submit">🚀 INITIATE BOOST</button>
+      <button type="submit">🚀 Start Boost</button>
     </form>
 
-    <div id="result" class="result-box"></div>
-    <div class="progress-bar"><div id="progress" class="progress"></div></div>
-    <div id="counter" class="counter"></div>
-
-    <div class="footer">THANK YOU TO USE MY PROJECT 💗</div>
+    <div id="result" class="result-box pending">⏳ Waiting...</div>
+    <div class="progress-container">
+      <div id="progress" class="progress-bar"></div>
+    </div>
+    <div id="counter">0 / 0</div>
+    <div class="footer">⚡ Powered by ReactBoost UI</div>
   </div>
 
   <script>
     document.getElementById("boostForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const appstate = document.getElementById("appstate").value.trim();
+      const cookie = document.getElementById("appstate").value.trim();
       const postLink = document.getElementById("postLink").value.trim();
       const reactionType = document.getElementById("reactionType").value;
       const limit = parseInt(document.getElementById("limit").value);
+      const interval = 2; // seconds
 
       const resultBox = document.getElementById("result");
       const progressBar = document.getElementById("progress");
       const counter = document.getElementById("counter");
 
-      resultBox.textContent = "⏳ Initializing boost...";
+      resultBox.textContent = "⏳ Starting boost...";
       resultBox.className = "result-box pending";
       progressBar.style.width = "0%";
-      counter.textContent = "";
+      counter.textContent = `0 / ${limit}`;
 
       try {
-        // simulate live progress (fake for UI demo)
-        let current = 0;
-        let interval = setInterval(() => {
-          current++;
-          const percent = Math.min((current/limit)*100,100);
-          progressBar.style.width = percent + "%";
-          counter.textContent = `Reacted ${current} / ${limit}`;
-
-          if(current >= limit){
-            clearInterval(interval);
-            resultBox.textContent = "✅ Boost completed!";
-            resultBox.className = "result-box success";
-          }
-        }, 150); 
-
         const res = await fetch("/boost", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ appstate, postLink, reactionType, limit })
+          body: JSON.stringify({ cookie, url: postLink, amount: limit, interval, reactionType }),
         });
 
         const data = await res.json();
-        if(!res.ok){
-          clearInterval(interval);
-          resultBox.textContent = data.message || "❌ Failed!";
+        if (!res.ok) {
+          resultBox.textContent = data.error || "❌ Failed!";
           resultBox.className = "result-box error";
-          progressBar.style.width = "0%";
-          counter.textContent = "";
+          return;
         }
 
+        const evtSource = new EventSource("/events");
+        evtSource.onmessage = function (event) {
+          const update = JSON.parse(event.data);
+
+          if (update.success) {
+            const percent = (update.current / update.total) * 100;
+            progressBar.style.width = percent + "%";
+            counter.textContent = `Reacted ${update.current} / ${update.total}`;
+            if (update.current === update.total) {
+              resultBox.textContent = "✅ Boost completed!";
+              resultBox.className = "result-box success";
+              evtSource.close();
+            }
+          } else {
+            resultBox.textContent = "❌ Some reactions failed";
+            resultBox.className = "result-box error";
+          }
+        };
       } catch (err) {
-        resultBox.textContent = "❌ Network error or server not running.";
+        resultBox.textContent = "❌ Network/server error.";
         resultBox.className = "result-box error";
-        progressBar.style.width = "0%";
-        counter.textContent = "";
       }
     });
   </script>
