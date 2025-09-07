@@ -1,18 +1,16 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
-const fs = require("fs");
+const path = require("path");
 
 const app = express();
 app.use(bodyParser.json());
-app.use(express.static("public")); 
-
-const appstate = JSON.parse(fs.readFileSync("./fbstate.json", "utf8"));
+app.use(express.static("public"));
 
 async function extractTokens(cookie) {
   try {
     const headers = {
-      "cookie": cookie,
+      cookie,
       "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     };
 
@@ -50,8 +48,8 @@ function extractPostIdFromUrl(url) {
 
 app.post("/react", async (req, res) => {
   try {
-    const { postLink, reactionType, limit } = req.body;
-    if (!postLink || !reactionType) {
+    const { appstate, postLink, reactionType, limit } = req.body;
+    if (!appstate || !postLink || !reactionType) {
       return res.status(400).json({ error: "❌ Missing required fields" });
     }
 
@@ -97,7 +95,7 @@ app.post("/react", async (req, res) => {
         await axios.post("https://www.facebook.com/api/graphql/", formData, {
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            "cookie": cookie,
+            cookie,
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
           }
         });
@@ -115,4 +113,6 @@ app.post("/react", async (req, res) => {
 });
 
 const PORT = 5000;
-app.listen(PORT, () => console.log(`🚀 ReactBoost server running at http://localhost:${PORT}`));
+app.listen(PORT, () =>
+  console.log(`🚀 ReactBoost server running at http://localhost:${PORT}`)
+);
