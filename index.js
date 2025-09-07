@@ -1,160 +1,72 @@
-const express = require("express");
-const path = require("path");
-const bodyParser = require("body-parser");
+const express = require('express');
+const axios = require('axios');
+const path = require('path');
+const bodyParser = require('body-parser');
 
 const app = express();
 app.use(express.json());
 app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(__dirname, 'public')));
 
-const total = new Map();
-
-// ✅ Total API
-app.get("/total", (req, res) => {
-  const data = Array.from(total.values()).map((link, index) => ({
-    session: index + 1,
-    url: link.url,
-    count: link.count,
-    id: link.id,
-    target: link.target,
-    type: link.type
-  }));
-  res.json(data);
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ✅ Home
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
-
-// ✅ Main submit
-app.post("/api/submit", async (req, res) => {
-  const { cookie, url, amount, interval, reactionType } = req.body;
-  if (!cookie || !url || !amount || !interval || !reactionType)
-    return res
-      .status(400)
-      .json({ error: "Missing cookie, url, amount, interval or reactionType" });
+app.post('/boost', async (req, res) => {
+  const { appstate, postLink, reactionType, limit } = req.body;
+  if (!appstate || !postLink || !reactionType || !limit) {
+    return res.status(400).json({ message: "❌ Missing required fields" });
+  }
 
   try {
-    const cookies = await convertCookie(cookie);
-    if (!cookies) {
-      return res.status(400).json({ status: 500, error: "Invalid cookies" });
+    const cookies = await convertCookie(appstate);
+    const postId = await getPostID(postLink);
+    if (!postId) throw new Error("Invalid post link or private post.");
+
+    let successCount = 0;
+
+    for (let i = 0; i < limit; i++) {
+      const success = await sendReaction(cookies, postId, reactionType);
+      if (success) successCount++;
+      await new Promise(r => setTimeout(r, 1500)); 
     }
 
-    await reactBoost(cookies, url, amount, interval, reactionType);
-    res.status(200).json({ status: 200 });
+    res.json({ message: `✅ Sent ${successCount}/${limit} reactions` });
+
   } catch (err) {
-    return res.status(500).json({ status: 500, error: err.message || err });
+    res.status(500).json({ message: err.message || "❌ Failed to send reactions" });
   }
 });
 
-// ✅ React Function
-async function reactBoost(cookies, url, amount, interval, reactionType) {
-  const id = await getPostID(url);
-  if (!id) throw new Error("Unable to get link id: invalid URL or private post.");
-
-  const postId = total.has(id) ? id + 1 : id;
-  total.set(postId, { url, id, count: 0, target: amount, type: reactionType });
-
-  let reactedCount = 0;
-  let timer;
-
-  async function reactOnce() {
-    try {
-      const { fb_dtsg, jazoest } = await getTokens(cookies);
-
-      const body = `fb_dtsg=${encodeURIComponent(
-        fb_dtsg
-      )}&jazoest=${encodeURIComponent(
-        jazoest
-      )}&reaction_type=${reactionType}&ft_ent_identifier=${id}`;
-
-      const response = await axios.post(
-        `https://mbasic.facebook.com/ufi/reaction/?ft_ent_identifier=${id}`,
-        body,
-        {
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            cookie: cookies,
-            "user-agent": "Mozilla/5.0"
-          }
-        }
-      );
-
-      if (response.status === 200) {
-        total.set(postId, {
-          ...total.get(postId),
-          count: total.get(postId).count + 1
-        });
-        reactedCount++;
-        console.log(`✅ Reacted #${reactedCount} on post ${id}`);
-      }
-
-      if (reactedCount >= amount) clearInterval(timer);
-    } catch (error) {
-      console.error("❌ Failed to react:", error.message);
-      clearInterval(timer);
-      total.delete(postId);
-    }
-  }
-
-  timer = setInterval(reactOnce, interval * 1000);
-
-  // auto-stop
-  setTimeout(() => {
-    clearInterval(timer);
-    total.delete(postId);
-  }, amount * interval * 1000);
-}
-
-// ✅ Get Post ID
-async function getPostID(url) {
-  try {
-    const response = await axios.post(
-      "https://id.traodoisub.com/api.php",
-      `link=${encodeURIComponent(url)}`,
-      {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" }
-      }
-    );
-    if (response.data && response.data.id) return response.data.id;
-
-    const regex = url.match(
-      /(fbid=\d+|story_fbid=(\d+)|\/posts\/(\d+)|pfbid[^\s/]+)/
-    );
-    return regex ? regex[2] || regex[3] || regex[1] : null;
-  } catch (error) {
-    return null;
-  }
-}
-
-// ✅ Get Tokens
-async function getTokens(cookies) {
-  const res = await axios.get("https://mbasic.facebook.com/", {
-    headers: { cookie: cookies, "user-agent": "Mozilla/5.0" }
-  });
-  const html = res.data;
-  const fb_dtsg = (html.match(/name="fb_dtsg" value="([^"]+)"/) || [])[1];
-  const jazoest = (html.match(/name="jazoest" value="([^"]+)"/) || [])[1];
-  if (!fb_dtsg || !jazoest) throw new Error("Failed to extract fb_dtsg/jazoest");
-  return { fb_dtsg, jazoest };
-}
-
-// ✅ Convert appstate JSON to cookie string
 async function convertCookie(cookie) {
-  return new Promise((resolve, reject) => {
-    try {
-      const cookies = JSON.parse(cookie);
-      const sbCookie = cookies.find((c) => c.key === "sb");
-      if (!sbCookie) reject("Invalid appstate");
-      const data = cookies.map((c) => `${c.key}=${c.value}`).join("; ");
-      resolve(data);
-    } catch (error) {
-      reject("Error processing appstate");
-    }
-  });
+  const cookies = JSON.parse(cookie);
+  return cookies.map(c => `${c.key}=${c.value}`).join("; ");
 }
 
-app.listen(3000, () =>
-  console.log("🚀 ReactBoost server running on port 3000")
-);
+async function getPostID(url) {
+  const match = url.match(/(\d{8,})/);
+  return match ? match[1] : null;
+}
+
+async function sendReaction(cookies, postId, reactionType) {
+  try {
+    const headers = {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "cookie": cookies,
+      "user-agent": "Mozilla/5.0"
+    };
+
+    const res = await axios.post(
+      `https://mbasic.facebook.com/ufi/reaction/?ft_ent_identifier=${postId}`,
+      `reaction_type=${reactionType}`,
+      { headers }
+    );
+
+    return res.status === 200;
+  } catch (e) {
+    console.error("React failed:", e.message);
+    return false;
+  }
+}
+
+app.listen(5000, () => console.log("🚀 ReactBoost running at http://localhost:5000"));
