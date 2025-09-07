@@ -18,7 +18,7 @@
     }
     .wrapper {
       display: flex;
-      flex-direction: column; /* 🔑 stack form + history */
+      flex-direction: column; 
       align-items: center;
       gap: 20px;
       width: 100%;
@@ -142,24 +142,7 @@
       </div>
       <div id="counter">0 / 0</div>
     </div>
-
-    <div class="history">
-      <h2>📜 History</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Account</th>
-            <th>PostID</th>
-            <th>Reaction</th>
-            <th>✅ Success</th>
-            <th>❌ Failed</th>
-          </tr>
-        </thead>
-        <tbody id="historyBody"></tbody>
-      </table>
-    </div>
-  </div>
-
+    
   <script>
     document.getElementById("reactForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -200,17 +183,6 @@
         counter.textContent = `${data.reacted} / ${limit}`;
         resultBox.textContent = `✅ Success: ${data.reacted}, ❌ Failed: ${data.failed}`;
         resultBox.className = "result-box success";
-
-        // add to history table
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${data.account}</td>
-          <td>${postLink}</td>
-          <td>${reactionType}</td>
-          <td>${data.reacted}</td>
-          <td>${data.failed}</td>
-        `;
-        tbody.prepend(row);
 
       } catch (err) {
         resultBox.textContent = "❌ " + err.message;
