@@ -17,39 +17,48 @@
       color: #fff;
     }
     .card {
-      background: rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.08);
       padding: 25px 30px;
-      border-radius: 18px;
+      border-radius: 20px;
       box-shadow: 0 0 25px rgba(0,0,0,0.4), 0 0 40px rgba(0,255,255,0.2);
       width: 420px;
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(14px);
       animation: fadeIn 1s ease;
     }
-    @keyframes fadeIn { from {opacity:0; transform:scale(0.95);} to {opacity:1; transform:scale(1);} }
+    @keyframes fadeIn { from {opacity:0; transform:translateY(15px);} to {opacity:1; transform:translateY(0);} }
     h1 {
       text-align: center;
       margin-bottom: 20px;
       font-size: 26px;
       letter-spacing: 1px;
       color: #00e6ff;
-      text-shadow: 0 0 8px #00e6ff, 0 0 16px #ff00ff;
+      text-shadow: 0 0 10px #00e6ff, 0 0 18px #ff00ff;
+      animation: glowPulse 2s infinite alternate;
     }
-    label { font-size: 13px; margin: 8px 0 4px; color: #ff99ff; display: block; }
+    @keyframes glowPulse {
+      from { text-shadow: 0 0 6px #00e6ff, 0 0 12px #ff00ff; }
+      to   { text-shadow: 0 0 14px #00e6ff, 0 0 28px #ff00ff; }
+    }
+    label { font-size: 13px; margin: 8px 0 4px; color: #ffb3ff; display: block; }
     input, select, textarea, button {
-      width: 100%; padding: 10px; border-radius: 8px;
+      width: 100%; padding: 10px; border-radius: 10px;
       border: none; outline: none; margin-bottom: 14px; font-size: 14px;
     }
     input, select, textarea {
-      background: rgba(255,255,255,0.1);
-      color: #fff; box-shadow: inset 0 0 8px rgba(0,255,255,0.3);
+      background: rgba(255,255,255,0.12);
+      color: #fff; box-shadow: inset 0 0 8px rgba(0,255,255,0.25);
     }
+    textarea { resize: vertical; }
     button {
       background: linear-gradient(90deg, #ff00ff, #00e6ff);
       color: #fff; font-weight: bold; text-transform: uppercase;
       letter-spacing: 1px; cursor: pointer; transition: 0.3s;
       text-shadow: 0 0 6px #000;
     }
-    button:hover { transform: scale(1.05); box-shadow: 0 0 20px #ff00ff, 0 0 30px #00e6ff; }
+    button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 0 20px #ff00ff, 0 0 30px #00e6ff;
+    }
     .result-box {
       margin-top: 10px; padding: 12px; border-radius: 8px;
       font-weight: bold; text-align: center; font-size: 14px;
@@ -57,7 +66,6 @@
     .pending { background: rgba(255,255,0,0.15); color: #ffff99; border: 1px solid #ffff66; }
     .success { background: rgba(0,255,100,0.15); color: #00ffcc; border: 1px solid #00ff9d; }
     .error   { background: rgba(255,0,60,0.15); color: #ff66aa; border: 1px solid #ff0040; }
-
     .progress-container {
       margin-top: 14px;
       height: 18px;
@@ -84,8 +92,8 @@
   <div class="card">
     <h1>⚡ REACT BOOST ⚡</h1>
     <form id="reactForm">
-      <label>Facebook Appstate (JSON or c3c fbstate):</label>
-      <textarea id="appstate" rows="5" placeholder='Paste your fbstate or appstate here...' required></textarea>
+      <label>Facebook Appstate / c3c fbstate (JSON):</label>
+      <textarea id="appstate" rows="5" placeholder='Paste your fbstate or appstate JSON here...' required></textarea>
 
       <label>Facebook Post Link:</label>
       <input type="text" id="postLink" placeholder="https://www.facebook.com/..." required />
@@ -115,14 +123,12 @@
   </div>
 
   <script>
-    // Normalizer: convert fbstate object -> appstate array
     function normalizeAppstate(input) {
       try {
         const parsed = JSON.parse(input);
-        if (Array.isArray(parsed)) {
-          return parsed; // already correct
-        } else if (typeof parsed === "object" && parsed !== null) {
-          return Object.keys(parsed).map(key => ({ key, value: String(parsed[key]) }));
+        if (Array.isArray(parsed)) return parsed;
+        if (typeof parsed === "object" && parsed !== null) {
+          return Object.keys(parsed).map(k => ({ key: k, value: String(parsed[k]) }));
         }
         throw new Error("Invalid format");
       } catch (e) {
@@ -130,27 +136,12 @@
       }
     }
 
-    function extractPostIdFromUrl(url) {
-      let postId = null;
-      const storyMatch = url.match(/story_fbid=(\d+)/);
-      const postMatch = url.match(/\/posts\/(\d+)/);
-      const videoMatch = url.match(/\/videos\/(\d+)/);
-      const directId = url.match(/\/(\d{6,})(?:\/|\?|$)/);
-
-      if (storyMatch) postId = storyMatch[1];
-      else if (postMatch) postId = postMatch[1];
-      else if (videoMatch) postId = videoMatch[1];
-      else if (directId) postId = directId[1];
-      return postId;
-    }
-
     document.getElementById("reactForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
       let appstate;
       try {
-        const raw = document.getElementById("appstate").value.trim();
-        appstate = normalizeAppstate(raw);
+        appstate = normalizeAppstate(document.getElementById("appstate").value.trim());
       } catch (err) {
         alert(err.message);
         return;
@@ -164,37 +155,17 @@
       const progressBar = document.getElementById("progress");
       const counter = document.getElementById("counter");
 
-      resultBox.textContent = "⏳ Extracting post ID...";
-      resultBox.className = "result-box pending";
-
-      const postId = extractPostIdFromUrl(postLink);
-      if (!postId) {
-        resultBox.textContent = "❌ Could not extract post ID from link.";
-        resultBox.className = "result-box error";
-        return;
-      }
-
       resultBox.textContent = "⏳ Sending reactions...";
+      resultBox.className = "result-box pending";
       progressBar.style.width = "0%";
       counter.textContent = `0 / ${limit}`;
 
       try {
-        let current = 0;
-        const interval = setInterval(() => {
-          if (current < limit) {
-            current++;
-            progressBar.style.width = ((current / limit) * 100) + "%";
-            counter.textContent = `${current} / ${limit}`;
-          }
-        }, 500);
-
         const res = await fetch("/react", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ appstate, postId, reactionType, limit })
+          body: JSON.stringify({ appstate, postLink, reactionType, limit })
         });
-
-        clearInterval(interval);
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Unknown error");
