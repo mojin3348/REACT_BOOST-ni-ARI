@@ -6,7 +6,7 @@ const app = express();
 app.use(bodyParser.json());
 
 /**
- * 🔄 Convert fbstate JSON -> cookie string
+ * 🔄 Convert fbstate/appstate JSON -> cookie string
  */
 async function convertCookie(cookie) {
   return new Promise((resolve, reject) => {
@@ -31,12 +31,15 @@ async function convertCookie(cookie) {
   });
 }
 
+/**
+ * 🕵️ Extract fb_dtsg, jazoest, etc.
+ */
 async function extractTokens(cookie) {
   const headers = { cookie, "user-agent": "Mozilla/5.0" };
   const res = await axios.get("https://www.facebook.com/", { headers });
   const page = res.data;
   return {
-    fb_dtsg: page.match(/"DTSGInitialData".*?"token":"([^"]+)"}/)?.[1],
+    fb_dtsg: page.match(/"DTSGInitialData".*?"token":"([^"]+)"/)?.[1],
     lsd: page.match(/"LSD",\[],{"token":"([^"]+)"}/)?.[1],
     jazoest: page.match(/name="jazoest" value="([^"]+)"/)?.[1],
     spin_r: page.match(/"__spin_r":([0-9]+)/)?.[1],
@@ -52,14 +55,18 @@ function extractPostId(url) {
          url.match(/\/(\d{6,})(?:\/|\?|$)/)?.[1];
 }
 
+/**
+ * 🚀 Endpoint: /react
+ */
 app.post("/react", async (req, res) => {
   try {
-    const { fbstate, postLink, reactionType, limit = 1 } = req.body;
-    if (!fbstate || !postLink || !reactionType) {
+    const { appstate, postLink, reactionType, limit = 1 } = req.body;
+    if (!appstate || !postLink || !reactionType) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    const cookie = await convertCookie(fbstate);
+    // 🔑 Convert appstate -> cookie string
+    const cookie = await convertCookie(appstate);
 
     const tokens = await extractTokens(cookie);
     if (!tokens.fb_dtsg) throw new Error("Token extraction failed");
