@@ -6,18 +6,58 @@ const app = express();
 app.use(bodyParser.json());
 app.use(express.static("public"));
 
-function buildCookieFromAppstate(appstateStr) {
+function normalizeAppstate(input) {
   try {
-    const arr = JSON.parse(appstateStr);
-    return arr.map(c => `${c.key}=${c.value}`).join("; ");
+    let parsed = input;
+    
+    if (typeof parsed === "string") {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch (e) {
+        try {
+          const decoded = Buffer.from(parsed, "base64").toString("utf8");
+          parsed = JSON.parse(decoded);
+        } catch (e2) {
+          throw new Error("Invalid appstate format");
+        }
+      }
+    }
+
+    // Final check: should be array
+    if (!Array.isArray(parsed)) {
+      throw new Error("Appstate is not an array");
+    }
+
+    return parsed.map(item => {
+      let value = item.value;
+
+      try {
+        if (typeof value === "string" && value.includes("%")) {
+          const decoded = decodeURIComponent(value);
+          value = decoded;
+        }
+      } catch (_) {}
+
+      return {
+        key: item.key,
+        value,
+        domain: item.domain || "facebook.com",
+        path: item.path || "/",
+      };
+    });
   } catch (e) {
     throw new Error("Invalid appstate JSON");
   }
 }
 
+function buildCookieFromAppstate(appstateStr) {
+  const arr = normalizeAppstate(appstateStr);
+  return arr.map(c => `${c.key}=${c.value}`).join("; ");
+}
+
 async function extractTokens(cookie) {
   const headers = {
-    "cookie": cookie,
+    cookie,
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
   };
   const res = await axios.get("https://www.facebook.com/", { headers });
@@ -86,7 +126,7 @@ app.post("/react", async (req, res) => {
         await axios.post("https://www.facebook.com/api/graphql/", formData, {
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            "cookie": cookie,
+            cookie,
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
           }
         });
