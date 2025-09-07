@@ -1,13 +1,17 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
+const path = require("path");
 
 const app = express();
 app.use(bodyParser.json());
 
-/**
- * 🔄 Convert fbstate/appstate JSON -> cookie string
- */
+app.use(express.static(path.join(__dirname, "public")));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
+
 async function convertCookie(cookie) {
   return new Promise((resolve, reject) => {
     try {
@@ -31,9 +35,6 @@ async function convertCookie(cookie) {
   });
 }
 
-/**
- * 🕵️ Extract fb_dtsg, jazoest, etc.
- */
 async function extractTokens(cookie) {
   const headers = { cookie, "user-agent": "Mozilla/5.0" };
   const res = await axios.get("https://www.facebook.com/", { headers });
@@ -55,9 +56,6 @@ function extractPostId(url) {
          url.match(/\/(\d{6,})(?:\/|\?|$)/)?.[1];
 }
 
-/**
- * 🚀 Endpoint: /react
- */
 app.post("/react", async (req, res) => {
   try {
     const { appstate, postLink, reactionType, limit = 1 } = req.body;
@@ -117,4 +115,5 @@ app.post("/react", async (req, res) => {
   }
 });
 
-app.listen(5000, () => console.log("🚀 API ready on http://localhost:5000"));
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 API ready on http://localhost:${PORT}`));
