@@ -30,14 +30,36 @@ async function extractTokens(cookie) {
   }
 }
 
+function extractPostIdFromUrl(url) {
+  let postId = null;
+  const storyMatch = url.match(/story_fbid=(\d+)/);
+  const postMatch = url.match(/\/posts\/(\d+)/);
+  const videoMatch = url.match(/\/videos\/(\d+)/);
+  const directId = url.match(/\/(\d{6,})(?:\/|\?|$)/);
+
+  if (storyMatch) postId = storyMatch[1];
+  else if (postMatch) postId = postMatch[1];
+  else if (videoMatch) postId = videoMatch[1];
+  else if (directId) postId = directId[1];
+
+  return postId;
+}
+
 app.post("/react", async (req, res) => {
   try {
-    const { appstate, postId, reactionType, limit } = req.body;
-    if (!appstate || !postId || !reactionType) {
+    const { appstate, postLink, reactionType, limit } = req.body;
+    if (!appstate || !postLink || !reactionType) {
       return res.status(400).json({ error: "❌ Missing required fields" });
     }
 
+    const postId = extractPostIdFromUrl(postLink);
+    if (!postId) {
+      return res.status(400).json({ error: "❌ Could not extract post ID from the given link" });
+    }
+
     const cookie = appstate.map(c => `${c.key}=${c.value}`).join("; ");
+
+    // Extract tokens
     const tokens = await extractTokens(cookie);
     if (!tokens || !tokens.fb_dtsg) {
       return res.status(500).json({ error: "❌ Failed to extract fb_dtsg/lsd/jazoest" });
@@ -84,7 +106,7 @@ app.post("/react", async (req, res) => {
       }
     }
 
-    return res.json({ success: true, reacted: success, failed: fail });
+    return res.json({ success: true, reacted: success, failed: fail, postId });
   } catch (err) {
     return res.status(500).json({ error: err.response?.data || err.message });
   }
