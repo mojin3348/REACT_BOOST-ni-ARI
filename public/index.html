@@ -16,7 +16,6 @@
       align-items: center;
       color: #fff;
     }
-
     .card {
       background: rgba(255,255,255,0.07);
       padding: 25px 30px;
@@ -26,12 +25,7 @@
       backdrop-filter: blur(12px);
       animation: fadeIn 1s ease;
     }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: scale(0.95); }
-      to { opacity: 1; transform: scale(1); }
-    }
-
+    @keyframes fadeIn { from {opacity:0; transform:scale(0.95);} to {opacity:1; transform:scale(1);} }
     h1 {
       text-align: center;
       margin-bottom: 20px;
@@ -39,61 +33,26 @@
       letter-spacing: 1px;
       color: #00e6ff;
       text-shadow: 0 0 8px #00e6ff, 0 0 16px #ff00ff;
-      overflow: hidden;
-      white-space: nowrap;
-      border-right: 3px solid #00e6ff;
-      width: 0;
-      margin-left: auto;
-      margin-right: auto;
-      animation: typing 2s steps(25,end) forwards, blink 0.7s infinite;
     }
-    @keyframes typing { from{width:0;} to{width:100%;} }
-    @keyframes blink { 50% { border-color: transparent; } }
-
-    label {
-      font-size: 13px;
-      margin: 8px 0 4px;
-      color: #ff99ff;
-      display: block;
-    }
+    label { font-size: 13px; margin: 8px 0 4px; color: #ff99ff; display: block; }
     input, select, textarea, button {
-      width: 100%;
-      padding: 10px;
-      border-radius: 8px;
-      border: none;
-      outline: none;
-      margin-bottom: 14px;
-      font-size: 14px;
+      width: 100%; padding: 10px; border-radius: 8px;
+      border: none; outline: none; margin-bottom: 14px; font-size: 14px;
     }
     input, select, textarea {
       background: rgba(255,255,255,0.1);
-      color: #fff;
-      box-shadow: inset 0 0 8px rgba(0,255,255,0.3);
+      color: #fff; box-shadow: inset 0 0 8px rgba(0,255,255,0.3);
     }
-    textarea { resize: vertical; }
-
     button {
       background: linear-gradient(90deg, #ff00ff, #00e6ff);
-      color: #fff;
-      font-weight: bold;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      cursor: pointer;
-      transition: 0.3s;
+      color: #fff; font-weight: bold; text-transform: uppercase;
+      letter-spacing: 1px; cursor: pointer; transition: 0.3s;
       text-shadow: 0 0 6px #000;
     }
-    button:hover {
-      transform: scale(1.05);
-      box-shadow: 0 0 20px #ff00ff, 0 0 30px #00e6ff;
-    }
-
+    button:hover { transform: scale(1.05); box-shadow: 0 0 20px #ff00ff, 0 0 30px #00e6ff; }
     .result-box {
-      margin-top: 10px;
-      padding: 12px;
-      border-radius: 8px;
-      font-weight: bold;
-      text-align: center;
-      font-size: 14px;
+      margin-top: 10px; padding: 12px; border-radius: 8px;
+      font-weight: bold; text-align: center; font-size: 14px;
     }
     .pending { background: rgba(255,255,0,0.15); color: #ffff99; border: 1px solid #ffff66; }
     .success { background: rgba(0,255,100,0.15); color: #00ffcc; border: 1px solid #00ff9d; }
@@ -111,33 +70,24 @@
       height: 100%;
       width: 0%;
       background: linear-gradient(90deg, #ff00ff, #00e6ff);
-      transition: width 0.25s;
+      transition: width 0.3s;
     }
-
     #counter {
       margin-top: 8px;
       font-size: 13px;
       text-align: center;
       color: #ddd;
     }
-
-    .footer {
-      margin-top: 15px;
-      text-align: center;
-      font-size: 12px;
-      font-style: italic;
-      color: #888;
-    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>ReactBoost</h1>
-    <form id="boostForm">
+    <h1>⚡ REACT BOOST ⚡</h1>
+    <form id="reactForm">
       <label>Facebook Appstate (JSON):</label>
-      <textarea id="appstate" rows="5" placeholder="Paste your appstate JSON here..." required></textarea>
+      <textarea id="appstate" rows="5" placeholder='YOUR APPSTATE HERE...' required></textarea>
 
-      <label>Post Link:</label>
+      <label>Facebook Post Link:</label>
       <input type="text" id="postLink" placeholder="https://www.facebook.com/..." required />
 
       <label>Reaction Type:</label>
@@ -151,8 +101,8 @@
         <option value="8">😡 Angry</option>
       </select>
 
-      <label>Amount:</label>
-      <input type="number" id="limit" min="1" value="5" required />
+      <label>Amount (Limit):</label>
+      <input type="number" id="limit" min="1" max="100" value="5" required />
 
       <button type="submit">🚀 Start Boost</button>
     </form>
@@ -162,62 +112,76 @@
       <div id="progress" class="progress-bar"></div>
     </div>
     <div id="counter">0 / 0</div>
-    <div class="footer">⚡ Powered by ReactBoost UI</div>
   </div>
 
   <script>
-    document.getElementById("boostForm").addEventListener("submit", async (e) => {
+    function extractPostIdFromUrl(url) {
+      let postId = null;
+      const storyMatch = url.match(/story_fbid=(\d+)/);
+      const postMatch = url.match(/\/posts\/(\d+)/);
+      const videoMatch = url.match(/\/videos\/(\d+)/);
+      const directId = url.match(/\/(\d{6,})(?:\/|\?|$)/);
+
+      if (storyMatch) postId = storyMatch[1];
+      else if (postMatch) postId = postMatch[1];
+      else if (videoMatch) postId = videoMatch[1];
+      else if (directId) postId = directId[1];
+      return postId;
+    }
+
+    document.getElementById("reactForm").addEventListener("submit", async (e) => {
       e.preventDefault();
 
-      const cookie = document.getElementById("appstate").value.trim();
+      const appstate = JSON.parse(document.getElementById("appstate").value.trim());
       const postLink = document.getElementById("postLink").value.trim();
       const reactionType = document.getElementById("reactionType").value;
       const limit = parseInt(document.getElementById("limit").value);
-      const interval = 2; // seconds
 
       const resultBox = document.getElementById("result");
       const progressBar = document.getElementById("progress");
       const counter = document.getElementById("counter");
 
-      resultBox.textContent = "⏳ Starting boost...";
+      resultBox.textContent = "⏳ Extracting post ID...";
       resultBox.className = "result-box pending";
+
+      const postId = extractPostIdFromUrl(postLink);
+      if (!postId) {
+        resultBox.textContent = "❌ Could not extract post ID from link.";
+        resultBox.className = "result-box error";
+        return;
+      }
+
+      resultBox.textContent = "⏳ Sending reactions...";
       progressBar.style.width = "0%";
       counter.textContent = `0 / ${limit}`;
 
       try {
-        const res = await fetch("/boost", {
+        let current = 0;
+        const interval = setInterval(() => {
+          if (current < limit) {
+            current++;
+            progressBar.style.width = ((current / limit) * 100) + "%";
+            counter.textContent = `${current} / ${limit}`;
+          }
+        }, 500);
+
+        const res = await fetch("/react", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cookie, url: postLink, amount: limit, interval, reactionType }),
+          body: JSON.stringify({ appstate, postId, reactionType, limit })
         });
 
+        clearInterval(interval);
+
         const data = await res.json();
-        if (!res.ok) {
-          resultBox.textContent = data.error || "❌ Failed!";
-          resultBox.className = "result-box error";
-          return;
-        }
+        if (!res.ok) throw new Error(data.error || "Unknown error");
 
-        const evtSource = new EventSource("/events");
-        evtSource.onmessage = function (event) {
-          const update = JSON.parse(event.data);
-
-          if (update.success) {
-            const percent = (update.current / update.total) * 100;
-            progressBar.style.width = percent + "%";
-            counter.textContent = `Reacted ${update.current} / ${update.total}`;
-            if (update.current === update.total) {
-              resultBox.textContent = "✅ Boost completed!";
-              resultBox.className = "result-box success";
-              evtSource.close();
-            }
-          } else {
-            resultBox.textContent = "❌ Some reactions failed";
-            resultBox.className = "result-box error";
-          }
-        };
+        progressBar.style.width = "100%";
+        counter.textContent = `${data.reacted} / ${limit}`;
+        resultBox.textContent = `✅ Success: ${data.reacted}, ❌ Failed: ${data.failed}`;
+        resultBox.className = "result-box success";
       } catch (err) {
-        resultBox.textContent = "❌ Network/server error.";
+        resultBox.textContent = "❌ " + err.message;
         resultBox.className = "result-box error";
       }
     });
